@@ -158,7 +158,7 @@ class _StudyPlannerScreenState extends State<StudyPlannerScreen> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _selectedEffort,
+                    initialValue: _selectedEffort,
                     items: const [
                       DropdownMenuItem(value: 'Low', child: Text('Low Effort')),
                       DropdownMenuItem(
@@ -184,7 +184,7 @@ class _StudyPlannerScreenState extends State<StudyPlannerScreen> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _selectedCourseWeight,
+                    initialValue: _selectedCourseWeight,
                     items: const [
                       DropdownMenuItem(value: '10%', child: Text('10%')),
                       DropdownMenuItem(value: '20%', child: Text('20%')),
