@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "104590120247",
+    "project_id": "studynsync-99bb5",
+    "storage_bucket": "studynsync-99bb5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:104590120247:android:bb67bfa2293b6e4747f6b2",
+        "android_client_info": {
+          "package_name": "com.example.study_n_sync"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwZK-C_M4Dqtvc8lPDJmUL4CF37T9WfW8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
