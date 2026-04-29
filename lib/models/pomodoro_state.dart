@@ -11,6 +11,8 @@ class PomodoroState {
   final int totalSeconds;
   final int remainingSeconds;
   final String controlledBy;
+  final String sessionGoal;
+  final int completedCycles;
   final DateTime updatedAt;
 
   const PomodoroState({
@@ -20,6 +22,8 @@ class PomodoroState {
     this.totalSeconds = 1500,
     this.remainingSeconds = 1500,
     this.controlledBy = '',
+    this.sessionGoal = '',
+    this.completedCycles = 0,
     required this.updatedAt,
   });
 
@@ -31,6 +35,8 @@ class PomodoroState {
       totalSeconds: (data['totalSeconds'] as num?)?.toInt() ?? 1500,
       remainingSeconds: (data['remainingSeconds'] as num?)?.toInt() ?? 1500,
       controlledBy: data['controlledBy'] as String? ?? '',
+      sessionGoal: data['sessionGoal'] as String? ?? '',
+      completedCycles: (data['completedCycles'] as num?)?.toInt() ?? 0,
       updatedAt: _dateFrom(data['updatedAt']),
     );
   }
@@ -42,8 +48,34 @@ class PomodoroState {
       'totalSeconds': totalSeconds,
       'remainingSeconds': remainingSeconds,
       'controlledBy': controlledBy,
+      'sessionGoal': sessionGoal,
+      'completedCycles': completedCycles,
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
+  }
+
+  PomodoroState copyWith({
+    String? groupId,
+    TimerMode? mode,
+    TimerRunState? runState,
+    int? totalSeconds,
+    int? remainingSeconds,
+    String? controlledBy,
+    String? sessionGoal,
+    int? completedCycles,
+    DateTime? updatedAt,
+  }) {
+    return PomodoroState(
+      groupId: groupId ?? this.groupId,
+      mode: mode ?? this.mode,
+      runState: runState ?? this.runState,
+      totalSeconds: totalSeconds ?? this.totalSeconds,
+      remainingSeconds: remainingSeconds ?? this.remainingSeconds,
+      controlledBy: controlledBy ?? this.controlledBy,
+      sessionGoal: sessionGoal ?? this.sessionGoal,
+      completedCycles: completedCycles ?? this.completedCycles,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
   }
 }
 
