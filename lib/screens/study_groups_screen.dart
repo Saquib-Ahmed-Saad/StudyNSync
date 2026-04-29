@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../models/study_group.dart';
+import '../models/study_session.dart';
 import '../services/firestore_service.dart';
 import 'chat_screen.dart';
 import 'timer_screen.dart';
@@ -64,12 +65,15 @@ class StudyGroupsScreen extends StatelessWidget {
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
-              const Text('Join a group to chat and use the shared timer.'),
+              const Text(
+                'Groups, members, sessions, chat, and timers use Firestore.',
+              ),
               const SizedBox(height: 16),
               ...groups.map(
                 (group) => _GroupCard(
                   group: group,
                   currentUid: user.uid,
+                  firestoreService: firestoreService,
                   onJoin: () async {
                     await firestoreService.joinGroup(
                       groupId: group.id,
@@ -195,6 +199,7 @@ class _GroupCard extends StatelessWidget {
   const _GroupCard({
     required this.group,
     required this.currentUid,
+    required this.firestoreService,
     required this.onJoin,
     required this.onOpenChat,
     required this.onOpenTimer,
@@ -202,9 +207,178 @@ class _GroupCard extends StatelessWidget {
 
   final StudyGroup group;
   final String currentUid;
+  final FirestoreService firestoreService;
   final Future<void> Function() onJoin;
   final VoidCallback onOpenChat;
   final VoidCallback onOpenTimer;
+
+  Future<void> _scheduleSession(BuildContext context) async {
+    final titleController = TextEditingController(
+      text: '${group.courseCode} Study Session',
+    );
+    final locationController = TextEditingController(text: 'Library 101');
+
+    DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
+    TimeOfDay selectedTime = const TimeOfDay(hour: 14, minute: 0);
+    int durationMinutes = 60;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final startTime = DateTime(
+              selectedDate.year,
+              selectedDate.month,
+              selectedDate.day,
+              selectedTime.hour,
+              selectedTime.minute,
+            );
+
+            return AlertDialog(
+              title: const Text('Schedule Study Session'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(labelText: 'Session title'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: locationController,
+                      decoration: const InputDecoration(labelText: 'Location'),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                        );
+
+                        if (picked != null) {
+                          setDialogState(() {
+                            selectedDate = picked;
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.calendar_month_outlined),
+                      label: Text(
+                        '${selectedDate.month}/${selectedDate.day}/${selectedDate.year}',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: selectedTime,
+                        );
+
+                        if (picked != null) {
+                          setDialogState(() {
+                            selectedTime = picked;
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.access_time_outlined),
+                      label: Text(selectedTime.format(context)),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      initialValue: durationMinutes,
+                      decoration: const InputDecoration(labelText: 'Duration'),
+                      items: const [
+                        DropdownMenuItem(value: 30, child: Text('30 minutes')),
+                        DropdownMenuItem(value: 60, child: Text('1 hour')),
+                        DropdownMenuItem(value: 90, child: Text('1.5 hours')),
+                        DropdownMenuItem(value: 120, child: Text('2 hours')),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setDialogState(() {
+                          durationMinutes = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Reminder queue will be created for ${startTime.month}/${startTime.day} at ${selectedTime.format(context)}.',
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final title = titleController.text.trim();
+                    final location = locationController.text.trim();
+
+                    if (title.isEmpty || location.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Title and location are required.'),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final startTime = DateTime(
+                      selectedDate.year,
+                      selectedDate.month,
+                      selectedDate.day,
+                      selectedTime.hour,
+                      selectedTime.minute,
+                    );
+
+                    final session = StudySession(
+                      id: '',
+                      groupId: group.id,
+                      title: title,
+                      createdBy: currentUid,
+                      participantIds: group.memberIds,
+                      startTime: startTime,
+                      endTime: startTime.add(Duration(minutes: durationMinutes)),
+                      location: location,
+                      createdAt: DateTime.now(),
+                    );
+
+                    await firestoreService.scheduleSession(session);
+
+                    if (!dialogContext.mounted) return;
+
+                    Navigator.pop(dialogContext);
+
+                    if (!context.mounted) return;
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Study session saved and reminder queued in Firestore.',
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('Schedule'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    titleController.dispose();
+    locationController.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -243,6 +417,11 @@ class _GroupCard extends StatelessWidget {
                   onPressed: isMember ? onOpenTimer : null,
                   icon: const Icon(Icons.timer_outlined),
                   label: const Text('Timer'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: isMember ? () => _scheduleSession(context) : null,
+                  icon: const Icon(Icons.event_available_outlined),
+                  label: const Text('Schedule'),
                 ),
               ],
             ),
