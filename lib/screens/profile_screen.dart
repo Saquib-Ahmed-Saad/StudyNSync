@@ -1,14 +1,33 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+import 'login_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   static const String routeName = '/profile';
 
+  Future<void> _signOut(BuildContext context) async {
+    await FirebaseAuth.instance.signOut();
+
+    if (!context.mounted) return;
+
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      LoginScreen.routeName,
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(
+        title: const Text('Profile'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -20,71 +39,52 @@ class ProfileScreen extends StatelessWidget {
               padding: const EdgeInsets.all(18),
               child: Column(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     radius: 42,
-                    backgroundColor: Colors.indigo.withValues(alpha: 0.14),
-                    child: const Icon(
-                      Icons.person_rounded,
-                      size: 44,
-                      color: Colors.indigo,
-                    ),
+                    child: Icon(Icons.person_rounded, size: 44),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Alex Student',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  Text(
+                    user?.displayName?.isNotEmpty == true
+                        ? user!.displayName!
+                        : 'StudyNSync User',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'alex.student@studynsync.edu',
-                    style: TextStyle(color: Colors.grey.shade700),
+                    user?.email ?? 'No Firebase user signed in',
+                    style: const TextStyle(color: Colors.grey),
                   ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Settings',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          _SettingCard(
+            icon: Icons.verified_user_outlined,
+            title: 'Firebase Authentication',
+            subtitle: user == null
+                ? 'No active Firebase user'
+                : 'Signed in with Firebase Auth',
           ),
-          const SizedBox(height: 10),
+          const _SettingCard(
+            icon: Icons.cloud_outlined,
+            title: 'Firestore Profile',
+            subtitle: 'User profile is stored under users/{uid}',
+          ),
           const _SettingCard(
             icon: Icons.notifications_outlined,
             title: 'Notifications',
-            subtitle: 'Manage study reminders and alerts',
+            subtitle: 'FCM token is saved after sign in when available',
           ),
-          const _SettingCard(
-            icon: Icons.palette_outlined,
-            title: 'Appearance',
-            subtitle: 'Theme and display preferences',
-          ),
-          const _SettingCard(
-            icon: Icons.privacy_tip_outlined,
-            title: 'Privacy',
-            subtitle: 'Control account visibility',
-          ),
-          const _SettingCard(
-            icon: Icons.help_outline_rounded,
-            title: 'Help & Support',
-            subtitle: 'Get help and contact support',
-          ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           OutlinedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Logout tapped (UI demo).')),
-              );
-            },
-            icon: const Icon(Icons.logout_rounded, color: Colors.red),
-            label: const Text(
-              'Logout',
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
-            ),
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: Colors.red.withValues(alpha: 0.4)),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
+            onPressed: () => _signOut(context),
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Logout'),
           ),
         ],
       ),
@@ -109,14 +109,14 @@ class _SettingCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         leading: CircleAvatar(
-          backgroundColor: Colors.indigo.withValues(alpha: 0.12),
-          child: Icon(icon, color: Colors.indigo),
+          child: Icon(icon),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
         subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right_rounded),
       ),
     );
   }
