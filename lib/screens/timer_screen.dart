@@ -112,6 +112,51 @@ class _TimerBody extends StatelessWidget {
   final String currentUid;
   final String Function(int seconds) formatSeconds;
 
+  Future<void> _setGoal(BuildContext context, PomodoroState state) async {
+    final controller = TextEditingController(text: state.sessionGoal);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Set Session Goal'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              labelText: 'Goal',
+              hintText: 'Finish Firebase testing evidence',
+            ),
+            maxLines: 2,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final updated = state.copyWith(
+                  sessionGoal: controller.text.trim(),
+                  controlledBy: currentUid,
+                  updatedAt: DateTime.now(),
+                );
+
+                await firestoreService.setPomodoroState(groupId, updated);
+
+                if (!dialogContext.mounted) return;
+
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Save Goal'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -160,11 +205,16 @@ class _TimerBody extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        state.controlledBy.isEmpty
-                            ? 'No active controller'
-                            : 'Last controlled by: ${state.controlledBy}',
+                        state.sessionGoal.isEmpty
+                            ? 'Goal: No session goal set'
+                            : 'Goal: ${state.sessionGoal}',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.grey),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Completed cycles: ${state.completedCycles}',
+                        textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 24),
                       Wrap(
@@ -203,11 +253,16 @@ class _TimerBody extends StatelessWidget {
                             icon: const Icon(Icons.restart_alt_rounded),
                             label: const Text('Reset'),
                           ),
+                          OutlinedButton.icon(
+                            onPressed: () => _setGoal(context, state),
+                            icon: const Icon(Icons.flag_outlined),
+                            label: const Text('Set Goal'),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 16),
                       const Text(
-                        'Timer state is synchronized through Firestore.',
+                        'Timer state and goals are synchronized through Firestore.',
                         textAlign: TextAlign.center,
                       ),
                     ],
