@@ -1,165 +1,222 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../theme/study_n_sync_theme.dart';
 
-class TimerScreen extends StatelessWidget {
+import '../models/pomodoro_state.dart';
+import '../models/study_group.dart';
+import '../services/firestore_service.dart';
+
+class TimerScreen extends StatefulWidget {
   const TimerScreen({super.key});
 
   static const String routeName = '/timer';
 
   @override
+  State<TimerScreen> createState() => _TimerScreenState();
+}
+
+class _TimerScreenState extends State<TimerScreen> {
+  final FirestoreService _firestoreService = FirestoreService();
+
+  String? _groupId;
+  String _groupName = 'Shared Timer';
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+
+    if (args is Map) {
+      _groupId = args['groupId'] as String?;
+      _groupName = args['groupName'] as String? ?? 'Shared Timer';
+    }
+  }
+
+  String _formatSeconds(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return const Scaffold(
+        body: Center(child: Text('Sign in first to use the shared timer.')),
+      );
+    }
+
+    if (_groupId != null && _groupId!.isNotEmpty) {
+      return _TimerBody(
+        groupId: _groupId!,
+        groupName: _groupName,
+        firestoreService: _firestoreService,
+        currentUid: user.uid,
+        formatSeconds: _formatSeconds,
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Shared Timer')),
+      body: StreamBuilder<List<StudyGroup>>(
+        stream: _firestoreService.watchGroups(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Timer error: ${snapshot.error}'));
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final joinedGroups = snapshot.data!
+              .where((group) => group.memberIds.contains(user.uid))
+              .toList();
+
+          if (joinedGroups.isEmpty) {
+            return const Center(
+              child: Text('Join or create a study group before using the timer.'),
+            );
+          }
+
+          final group = joinedGroups.first;
+
+          return _TimerBody(
+            groupId: group.id,
+            groupName: group.name,
+            firestoreService: _firestoreService,
+            currentUid: user.uid,
+            formatSeconds: _formatSeconds,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TimerBody extends StatelessWidget {
+  const _TimerBody({
+    required this.groupId,
+    required this.groupName,
+    required this.firestoreService,
+    required this.currentUid,
+    required this.formatSeconds,
+  });
+
+  final String groupId;
+  final String groupName;
+  final FirestoreService firestoreService;
+  final String currentUid;
+  final String Function(int seconds) formatSeconds;
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Focus Ritual')),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: StudyNSyncSpacing.pagePadding,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    StudyNSyncColors.midnightBlue,
-                    StudyNSyncColors.deepNavy,
-                  ],
+      appBar: AppBar(
+        title: Text('$groupName Timer'),
+      ),
+      body: StreamBuilder<PomodoroState>(
+        stream: firestoreService.watchPomodoroState(groupId),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Timer error: ${snapshot.error}'));
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final state = snapshot.data!;
+
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
                 ),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: StudyNSyncColors.mutedGold, width: 1),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(22),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text(
-                      'Focus Ritual',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Calm, focused work guided by intentional study blocks.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: StudyNSyncColors.textSecondary,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 26),
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 28),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(18),
-                        color: StudyNSyncColors.parchment.withValues(alpha: 0.96),
-                        border: Border.all(color: StudyNSyncColors.mutedGold),
-                      ),
-                      child: const Column(
-                        children: [
-                          Icon(
-                            Icons.hourglass_top_rounded,
-                            color: StudyNSyncColors.deepNavy,
-                            size: 34,
-                          ),
-                          SizedBox(height: 12),
-                          Text(
-                            '25:00',
-                            style: TextStyle(
-                              fontSize: 52,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                              color: StudyNSyncColors.deepNavy,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: StudyNSyncColors.charcoal,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: StudyNSyncColors.icyBlue.withValues(alpha: 0.45),
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.timer_rounded, size: 64),
+                      const SizedBox(height: 16),
+                      Text(
+                        formatSeconds(state.remainingSeconds),
+                        style: const TextStyle(
+                          fontSize: 56,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
                         ),
                       ),
-                      child: const Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.auto_stories_rounded,
-                            size: 18,
-                            color: StudyNSyncColors.icyBlue,
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Session goal: Summarize chapter 5 and solve 3 practice problems.',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: StudyNSyncColors.textPrimary,
-                              ),
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 8),
+                      Text(
+                        'Mode: ${state.mode.name} • Status: ${state.runState.name}',
+                        textAlign: TextAlign.center,
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
+                      const SizedBox(height: 8),
+                      Text(
+                        state.controlledBy.isEmpty
+                            ? 'No active controller'
+                            : 'Last controlled by: ${state.controlledBy}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                      const SizedBox(height: 24),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        alignment: WrapAlignment.center,
+                        children: [
+                          ElevatedButton.icon(
                             onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Start pressed (UI demo).'),
-                                ),
+                              firestoreService.startPomodoro(
+                                groupId,
+                                currentUid,
                               );
                             },
                             icon: const Icon(Icons.play_arrow_rounded),
                             label: const Text('Start'),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: OutlinedButton.icon(
+                          OutlinedButton.icon(
                             onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Pause pressed (UI demo).'),
-                                ),
+                              firestoreService.pausePomodoro(
+                                groupId,
+                                currentUid,
+                                state.remainingSeconds,
                               );
                             },
                             icon: const Icon(Icons.pause_rounded),
                             label: const Text('Pause'),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Reset pressed (UI demo).'),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              firestoreService.resetPomodoro(
+                                groupId,
+                                currentUid,
+                              );
+                            },
+                            icon: const Icon(Icons.restart_alt_rounded),
+                            label: const Text('Reset'),
                           ),
-                        );
-                      },
-                      icon: const Icon(Icons.restart_alt_rounded),
-                      label: const Text('Reset'),
-                    ),
-                  ],
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Timer state is synchronized through Firestore.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
