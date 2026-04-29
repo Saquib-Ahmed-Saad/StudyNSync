@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -33,8 +35,9 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 
   String _formatSeconds(int seconds) {
-    final minutes = seconds ~/ 60;
-    final remainingSeconds = seconds % 60;
+    final safeSeconds = seconds.clamp(0, 999999);
+    final minutes = safeSeconds ~/ 60;
+    final remainingSeconds = safeSeconds % 60;
 
     return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
@@ -97,7 +100,7 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 }
 
-class _TimerBody extends StatelessWidget {
+class _TimerBody extends StatefulWidget {
   const _TimerBody({
     required this.groupId,
     required this.groupName,
@@ -111,6 +114,43 @@ class _TimerBody extends StatelessWidget {
   final FirestoreService firestoreService;
   final String currentUid;
   final String Function(int seconds) formatSeconds;
+
+  @override
+  State<_TimerBody> createState() => _TimerBodyState();
+}
+
+class _TimerBodyState extends State<_TimerBody> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {
+          // Rebuild every second so the running timer visually counts down.
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  int _visibleRemainingSeconds(PomodoroState state) {
+    if (state.runState != TimerRunState.running) {
+      return state.remainingSeconds;
+    }
+
+    final elapsedSeconds = DateTime.now().difference(state.updatedAt).inSeconds;
+    final calculated = state.remainingSeconds - elapsedSeconds;
+
+    return calculated.clamp(0, state.totalSeconds);
+  }
 
   Future<void> _setGoal(BuildContext context, PomodoroState state) async {
     final controller = TextEditingController(text: state.sessionGoal);
@@ -137,11 +177,14 @@ class _TimerBody extends StatelessWidget {
               onPressed: () async {
                 final updated = state.copyWith(
                   sessionGoal: controller.text.trim(),
-                  controlledBy: currentUid,
+                  controlledBy: widget.currentUid,
                   updatedAt: DateTime.now(),
                 );
 
-                await firestoreService.setPomodoroState(groupId, updated);
+                await widget.firestoreService.setPomodoroState(
+                  widget.groupId,
+                  updated,
+                );
 
                 if (!dialogContext.mounted) return;
 
@@ -157,14 +200,32 @@ class _TimerBody extends StatelessWidget {
     controller.dispose();
   }
 
+  Future<void> _completeCycleIfNeeded(PomodoroState state) async {
+    final visibleSeconds = _visibleRemainingSeconds(state);
+
+    if (state.runState != TimerRunState.running || visibleSeconds > 0) {
+      return;
+    }
+
+    final completed = state.copyWith(
+      runState: TimerRunState.idle,
+      remainingSeconds: state.totalSeconds,
+      completedCycles: state.completedCycles + 1,
+      controlledBy: widget.currentUid,
+      updatedAt: DateTime.now(),
+    );
+
+    await widget.firestoreService.setPomodoroState(widget.groupId, completed);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('$groupName Timer'),
+        title: Text('${widget.groupName} Timer'),
       ),
       body: StreamBuilder<PomodoroState>(
-        stream: firestoreService.watchPomodoroState(groupId),
+        stream: widget.firestoreService.watchPomodoroState(widget.groupId),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(child: Text('Timer error: ${snapshot.error}'));
@@ -175,6 +236,13 @@ class _TimerBody extends StatelessWidget {
           }
 
           final state = snapshot.data!;
+          final visibleSeconds = _visibleRemainingSeconds(state);
+
+          if (state.runState == TimerRunState.running && visibleSeconds == 0) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _completeCycleIfNeeded(state);
+            });
+          }
 
           return Center(
             child: Padding(
@@ -191,7 +259,7 @@ class _TimerBody extends StatelessWidget {
                       const Icon(Icons.timer_rounded, size: 64),
                       const SizedBox(height: 16),
                       Text(
-                        formatSeconds(state.remainingSeconds),
+                        widget.formatSeconds(visibleSeconds),
                         style: const TextStyle(
                           fontSize: 56,
                           fontWeight: FontWeight.bold,
@@ -223,31 +291,35 @@ class _TimerBody extends StatelessWidget {
                         alignment: WrapAlignment.center,
                         children: [
                           ElevatedButton.icon(
-                            onPressed: () {
-                              firestoreService.startPomodoro(
-                                groupId,
-                                currentUid,
-                              );
-                            },
+                            onPressed: state.runState == TimerRunState.running
+                                ? null
+                                : () {
+                                    widget.firestoreService.startPomodoro(
+                                      widget.groupId,
+                                      widget.currentUid,
+                                    );
+                                  },
                             icon: const Icon(Icons.play_arrow_rounded),
                             label: const Text('Start'),
                           ),
                           OutlinedButton.icon(
-                            onPressed: () {
-                              firestoreService.pausePomodoro(
-                                groupId,
-                                currentUid,
-                                state.remainingSeconds,
-                              );
-                            },
+                            onPressed: state.runState == TimerRunState.running
+                                ? () {
+                                    widget.firestoreService.pausePomodoro(
+                                      widget.groupId,
+                                      widget.currentUid,
+                                      visibleSeconds,
+                                    );
+                                  }
+                                : null,
                             icon: const Icon(Icons.pause_rounded),
                             label: const Text('Pause'),
                           ),
                           OutlinedButton.icon(
                             onPressed: () {
-                              firestoreService.resetPomodoro(
-                                groupId,
-                                currentUid,
+                              widget.firestoreService.resetPomodoro(
+                                widget.groupId,
+                                widget.currentUid,
                               );
                             },
                             icon: const Icon(Icons.restart_alt_rounded),
@@ -262,7 +334,7 @@ class _TimerBody extends StatelessWidget {
                       ),
                       const SizedBox(height: 16),
                       const Text(
-                        'Timer state and goals are synchronized through Firestore.',
+                        'Timer state and goals are synchronized through Firestore. The countdown display updates locally every second from the shared Firestore start time.',
                         textAlign: TextAlign.center,
                       ),
                     ],
