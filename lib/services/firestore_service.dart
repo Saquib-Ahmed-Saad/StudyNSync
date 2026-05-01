@@ -147,10 +147,20 @@ class FirestoreService {
   }
 
   Stream<List<StudyRoom>> watchRooms() {
-    return _rooms.orderBy('building').orderBy('name').snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => StudyRoom.fromMap(doc.id, doc.data())).toList();
+  return _rooms.orderBy('building').snapshots().map((snapshot) {
+    final rooms = snapshot.docs
+        .map((doc) => StudyRoom.fromMap(doc.id, doc.data()))
+        .toList();
+
+    rooms.sort((a, b) {
+      final buildingCompare = a.building.compareTo(b.building);
+      if (buildingCompare != 0) return buildingCompare;
+      return a.name.compareTo(b.name);
     });
-  }
+
+    return rooms;
+  });
+}
 
   Future<void> seedDemoRooms() async {
     final now = DateTime.now();
