@@ -219,7 +219,7 @@ notificationQueue
 
 ## Main Project Files
 
-Models
+Models: 
 lib/models/app_user.dart
 lib/models/study_task.dart
 lib/models/study_plan_item.dart
@@ -229,7 +229,7 @@ lib/models/group_message.dart
 lib/models/study_session.dart
 lib/models/pomodoro_state.dart
 
-Services
+Services: 
 lib/services/auth_service.dart
 lib/services/firestore_service.dart
 lib/services/study_planner_service.dart
@@ -237,7 +237,7 @@ lib/services/notification_service.dart
 lib/services/storage_service.dart
 lib/services/studynsync_backend.dart
 
-Screens
+Screens: 
 lib/screens/login_screen.dart
 lib/screens/dashboard_screen.dart
 lib/screens/profile_screen.dart
@@ -248,13 +248,13 @@ lib/screens/chat_screen.dart
 lib/screens/timer_screen.dart
 lib/screens/backend_test_screen.dart
 
-Firebase Rules
+Firebase Rules:
 firebase_rules/firestore.rules
 firebase_rules/storage.rules
 firebase_rules/firestore.indexes.json
 firebase.json
 
-Tests
+Tests:
 test/auth_validation_test.dart
 test/study_planner_service_test.dart
 
